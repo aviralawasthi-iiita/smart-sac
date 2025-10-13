@@ -1,0 +1,16 @@
+{
+  "name": "smart-sac",
+  "version": "1.0.0",
+  "description": "software engineering project",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "student",
+    "activity",
+    "center"
+  ],
+  "author": "Aviral Awasthi",
+  "license": "ISC"
+}
