@@ -1,21 +1,27 @@
 {
-  "name": "smart-sac",
+  "name": "Smart Sac",
   "version": "1.0.0",
-  "description": "software engineering project",
+  "description": "modernizing hte student activity center",
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [
-    "student",
-    "activity",
-    "center"
-  ],
-  "author": "Aviral Awasthi",
+  "author": "",
   "license": "ISC",
   "devDependencies": {
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.7.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.18.0",
+    "mongoose-aggregate-paginate-v2": "^1.1.4",
+    "multer": "^2.0.2"
   }
 }
