@@ -1,1 +1,1 @@
-export const DB_Name ="Smart Sac"
+export const DB_Name ="Smart-Sac"

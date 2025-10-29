@@ -1,0 +1,214 @@
+import { asyncHandler } from "../utils/asyncHandler.js"
+import {ApiError}  from "../utils/ApiError.js"
+import { ApiResponse } from "../utils/ApiResponse.js"
+import jwt from "jsonwebtoken"
+import { Admin } from "../models/admin.model.js";
+
+
+const generateAccessTokenAndRefreshTokens = async (userId) => {
+  try {
+    const user = await Admin.findById(userId);
+
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(500, "Error while generating tokens");
+  }
+};
+
+
+const registerAdmin = asyncHandler(async(req,res) => {
+    const {email,password} = req.body;
+    if(!email){
+        throw new ApiError(400,"all fields are required");
+    }
+    if (password !== process.env.ADMIN_PASSWORD) {
+      throw new ApiError(401, "Invalid password");
+    }
+
+    const existedUser = await Admin.findOne({ email });
+    if(existedUser){
+        throw new ApiError(409,"user with email or username  or phone number already exist" );
+    }
+    const user = await Admin.create({
+        email
+    })
+    const usercheck = await Admin.findById(user._id).select("-refreshToken");
+
+    if(!usercheck){
+        throw new ApiError(500,"user not created");
+    }
+    return res.status(201).json(
+        new ApiResponse(200,usercheck,"User created succesfully")
+    )
+});
+
+
+const loginAdmin = asyncHandler( async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email) {
+      throw new ApiError(400, "Email is required");
+    }
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+      throw new ApiError(401, "Invalid password");
+    }
+
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      throw new ApiError(404, "Admin not found");
+    }
+
+    const { accessToken, refreshToken } =
+      await generateAccessTokenAndRefreshTokens(admin._id);
+
+    const options = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    };
+
+    console.log("Admin logged in");
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          { accessToken, refreshToken },
+          "Admin logged in successfully"
+        )
+      );
+  } catch (err) {
+    throw new ApiError(500,err);
+  }
+});
+
+
+
+const logoutAdmin = asyncHandler(async(req,res)=> {
+    await Admin.findByIdAndUpdate(req.user._id,
+        {
+            $set:{
+                refreshToken: undefined
+            }
+        },
+        {
+            new:true
+        }
+    );
+
+    const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  };
+
+    return res.status(200)
+    .clearCookie("accessToken",options)
+    .clearCookie("refreshToken",options)
+    .json({ message: "Admin logged out successfully" });;
+});
+
+const refreshAccessToken = asyncHandler(async(req,res) =>{
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    if(!incomingRefreshToken){
+        throw new ApiError(500,"genrateing refrees gone wrong");
+    }
+    try {
+        const decodedToken = jwt.verify(
+            incomingRefreshToken,
+            process.env.REFRESH_TOKEN_SECRET
+        );
+        const user = await Admin.findById(decodedToken?._id);
+        if(!user){
+            throw new ApiError(401,"invalid rerresh token");
+        }
+        if(incomingRefreshToken !== user?.refreshToken){
+            throw new ApiError(401,"not smae");
+        }
+        const options = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production", // ✅ only secure in prod
+            sameSite: "strict", // optional but recommended
+            };
+        const {accessToken,refreshToken} =  await generateAccessTokenAndRefreshTokens(user._id);
+        return res.status(200)
+        .cookie("accessToken",accessToken,options)
+        .cookie("refreshToken",refreshToken,options)
+        .json(new ApiResponse(
+            200,
+            {
+                accessToken,refreshToken
+            },
+            "admin loggin in succesfully",
+        ))
+    } catch (error) {
+        throw new ApiError(501, error?.message || "refreshtoken problem");
+    }
+})
+
+const getCurrentAdmin = asyncHandler(async(req,res) => {
+    return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+})
+
+const updateAccountDetails = asyncHandler(async(req,res) => {
+    const {email} = req.body;
+    if(!email){
+        throw new ApiError(400,"Email is required");
+    }
+    const user = await Admin.findByIdAndUpdate(req.user?._id,
+        {
+            $set:{
+                email
+            }
+        },
+        {
+            new:true
+        }
+    ).select("-password")
+
+    return res.status(200)
+    .json(new ApiResponse(200,user, "account details updated"))
+})
+
+const dashboardDetails = asyncHandler(async (req,res)=>{
+  user = req.user;
+  if(!user) throw new ApiError(500, "no user found");
+  numberOfUnreadMessages = 3;
+  numberOfOpenTickets=1;
+  games = [games];
+  announcement = recent;
+  res.status(200)
+  .json(new ApiResponse(200,{
+    unreadMessages: numberOfUnreadMessages,
+    openTickets : numberOfOpenTickets,
+    games: games,
+    announcement: announcement
+  },"details sent"))
+
+})
+
+export {
+    loginAdmin,
+    logoutAdmin,
+    refreshAccessToken,
+    updateAccountDetails,
+    getCurrentAdmin,
+    registerAdmin,
+    dashboardDetails,
+};
