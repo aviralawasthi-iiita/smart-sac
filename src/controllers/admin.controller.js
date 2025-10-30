@@ -222,10 +222,9 @@ const updateEquipment = asyncHandler(async (req, res) => {
   if (!status) throw new ApiError(500, "Status is required");
   if (!equipment || !equipment._id) throw new ApiError(400, "Equipment ID is required");
 
-  // Find the equipment from the DB
   const equipmentDoc = await Equipment.findById(equipment._id);
   if (!equipmentDoc) throw new ApiError(404, "Equipment not found");
-
+  
   if (status === "in-use") {
     if (!roll_no || !duration) throw new ApiError(400, "roll_no and duration are required for in-use status");
 
@@ -236,7 +235,6 @@ const updateEquipment = asyncHandler(async (req, res) => {
     equipmentDoc.duration = duration;
     equipmentDoc.status = "in-use";
   } else {
-    // freeing the equipment
     equipmentDoc.user = null;
     equipmentDoc.duration = null;
     equipmentDoc.status = status;

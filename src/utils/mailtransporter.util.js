@@ -2,16 +2,15 @@ import nodemailer from "nodemailer";
 
 export const createEmailTransporter = () => {
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST, // e.g., smtp.gmail.com
+    host: process.env.SMTP_HOST, 
     port: process.env.SMTP_PORT || 587,
-    secure: false, // true for 465, false for 587
+    secure: false,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
   });
 
-  // Optional: verify connection
   transporter.verify((error, success) => {
     if (error) {
       console.error("Email transporter error:", error);

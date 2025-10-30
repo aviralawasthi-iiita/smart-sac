@@ -230,11 +230,10 @@ const forgotPassword = asyncHandler(async (req, res) => {
     const transporter = createEmailTransporter();
     S
     await transporter.sendMail({
-      from: `"Your App Name" <${process.env.EMAIL_USER}>`,
+      from: `"Smart-Sac" <${process.env.EMAIL_USER}>`,
       to: user.email,
       subject: 'Password Reset Token',
-      html: messagenodemon -v
-
+      html: message
     })
 
     return res.status(200).json(
@@ -343,10 +342,10 @@ const updateAccountDetails = asyncHandler(async(req,res) => {
 
     return res.status(200)
     .json(new ApiResponse(200,user, "account details updated"))
-})
+}) 
 
 const dashboardDetails = asyncHandler(async (req,res)=>{
-  user = req.user;
+  const user = req.user;
   if(!user) throw new ApiError(500, "no user found");
   const [
     numberOfUnreadMessages,
