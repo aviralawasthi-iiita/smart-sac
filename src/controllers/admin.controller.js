@@ -247,6 +247,96 @@ const updateEquipment = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, { equipment: equipmentDoc }, "Equipment updated successfully"));
 });
 
+
+const addGame = asyncHandler(async (req, res) => {
+  const { name } = req.body;
+
+  if (!name || name.trim() === "") {
+    throw new ApiError(400, "Game name is required");
+  }
+  const existingGame = await Game.findOne({ name: name.toLowerCase().trim() });
+  if (existingGame) {
+    throw new ApiError(409, "Game with this name already exists");
+  }
+  const game = await Game.create({ name: name.toLowerCase().trim() });
+  return res.status(201).json(
+    new ApiResponse(201, game, "Game created successfully")
+  );
+});
+
+
+const removeGame = asyncHandler(async (req, res) => {
+  const { name } = req.body;
+
+  if (!name || name.trim() === "") {
+    throw new ApiError(400, "Game name is required");
+  }
+  const game = await Game.findOne({ name: name.toLowerCase().trim() });
+  if (!game) {
+    throw new ApiError(404, "Game not found");
+  }
+
+  await Equipment.deleteMany({ _id: { $in: game.equipment } });
+  await Game.deleteOne({ _id: game._id });
+
+  return res.status(200).json(
+    new ApiResponse(200, null, "Game and associated equipment removed successfully")
+  );
+});
+
+const addEquipment = asyncHandler(async (req, res) => {
+  const { gameName, name } = req.body;
+
+  if (!gameName || !name) {
+    throw new ApiError(400, "Both gameName and equipment name are required");
+  }
+  const game = await Game.findOne({ name: gameName.toLowerCase().trim() });
+  if (!game) {
+    throw new ApiError(404, "Game not found");
+  }
+
+  const equipment = await Equipment.create({ name: name.toLowerCase().trim() });
+  game.equipment.push(equipment._id);
+  await game.save();
+
+  return res.status(201).json(
+    new ApiResponse(201, { equipment, game }, "Equipment added to game successfully")
+  );
+});
+
+const removeEquipment = asyncHandler(async (req, res) => {
+  const { gameName, name } = req.body;
+
+  if (!gameName || !name) {
+    throw new ApiError(400, "Both gameName and equipment name are required");
+  }
+  const game = await Game.findOne({ name: gameName.toLowerCase().trim() });
+  if (!game) {
+    throw new ApiError(404, "Game not found");
+  }
+  const equipment = await Equipment.findOne({ name: name.toLowerCase().trim() });
+  if (!equipment) {
+    throw new ApiError(404, "Equipment not found");
+  }
+  const index = game.equipment.indexOf(equipment._id);
+  if (index === -1) {
+    throw new ApiError(400, "Equipment not associated with this game");
+  }
+  game.equipment.splice(index, 1);
+  await game.save();
+  await Equipment.deleteOne({ _id: equipment._id });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { game, removedEquipment: equipment },
+      "Equipment removed successfully"
+    )
+  );
+});
+
+
+
 export {
     loginAdmin,
     logoutAdmin,
@@ -255,5 +345,9 @@ export {
     getCurrentAdmin,
     registerAdmin,
     dashboardDetails,
-    updateEquipment
+    updateEquipment,
+    addGame,
+    removeGame,
+    addEquipment,
+    removeEquipment
 };
