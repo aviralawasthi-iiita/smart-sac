@@ -228,13 +228,14 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   try {
     const transporter = createEmailTransporter();
-    
+    S
     await transporter.sendMail({
       from: `"Your App Name" <${process.env.EMAIL_USER}>`,
       to: user.email,
       subject: 'Password Reset Token',
-      html: message
-    });
+      html: messagenodemon -v
+
+    })
 
     return res.status(200).json(
       new ApiResponse(
@@ -353,7 +354,7 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
     equipment,
     announcements
   ] = await Promise.all([
-    Message.countDocuments({ receiver: user._id, status: { $ne: "read" } , status: { $ne : "unsent"}}),
+    Message.countDocuments({ receiver: user._id, status: { $ne: ["read","unsent"] }}),
     Ticket.countDocuments({ sender: user._id, status: "open" }),
     Equipment.find().lean(),
     Announcement.find().sort({ createdAt: -1 }).limit(2).lean()
@@ -364,8 +365,7 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
       200,
       {
         unreadMessages: numberOfUnreadMessages,
-        openTickets: numberOfOpenTickets,
-        games,         
+        openTickets: numberOfOpenTickets,     
         equipment,  
         announcements  
       },

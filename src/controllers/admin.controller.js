@@ -5,6 +5,14 @@ import jwt from "jsonwebtoken"
 import { Admin } from "../models/admin.model.js";
 
 
+import { Message } from "../models/message.model.js";
+import { Ticket } from "../models/ticket.model.js";
+import { Equipment } from "../models/equipment.model.js";
+import { Game } from "../models/game.model.js";
+import { Announcement } from "../models/announcement.model.js";
+import { application } from "express";
+import { User } from "../models/user.model.js";
+
 const generateAccessTokenAndRefreshTokens = async (userId) => {
   try {
     const user = await Admin.findById(userId);
@@ -189,19 +197,57 @@ const updateAccountDetails = asyncHandler(async(req,res) => {
 const dashboardDetails = asyncHandler(async (req,res)=>{
   user = req.user;
   if(!user) throw new ApiError(500, "no user found");
-  numberOfUnreadMessages = 3;
-  numberOfOpenTickets=1;
-  games = [games];
-  announcement = recent;
-  res.status(200)
-  .json(new ApiResponse(200,{
-    unreadMessages: numberOfUnreadMessages,
-    openTickets : numberOfOpenTickets,
-    games: games,
-    announcement: announcement
-  },"details sent"))
+  const [
+    equipment,
+    announcements
+  ] = await Promise.all([
+    Equipment.find().lean(),
+    Announcement.find().sort({ createdAt: -1 }).limit(2).lean()
+  ]);
 
-})
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {      
+        equipment,  
+        announcements  
+      },
+      "Dashboard details sent"
+    )
+  );
+});
+const updateEquipment = asyncHandler(async (req, res) => {
+  const { status, equipment, roll_no, duration } = req.body;
+
+  if (!status) throw new ApiError(500, "Status is required");
+  if (!equipment || !equipment._id) throw new ApiError(400, "Equipment ID is required");
+
+  // Find the equipment from the DB
+  const equipmentDoc = await Equipment.findById(equipment._id);
+  if (!equipmentDoc) throw new ApiError(404, "Equipment not found");
+
+  if (status === "in-use") {
+    if (!roll_no || !duration) throw new ApiError(400, "roll_no and duration are required for in-use status");
+
+    const user = await User.findOne({ roll_no });
+    if (!user) throw new ApiError(404, "No user found with that roll number");
+
+    equipmentDoc.user = user._id;
+    equipmentDoc.duration = duration;
+    equipmentDoc.status = "in-use";
+  } else {
+    // freeing the equipment
+    equipmentDoc.user = null;
+    equipmentDoc.duration = null;
+    equipmentDoc.status = status;
+  }
+
+  await equipmentDoc.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { equipment: equipmentDoc }, "Equipment updated successfully"));
+});
 
 export {
     loginAdmin,
@@ -211,4 +257,5 @@ export {
     getCurrentAdmin,
     registerAdmin,
     dashboardDetails,
+    updateEquipment
 };
