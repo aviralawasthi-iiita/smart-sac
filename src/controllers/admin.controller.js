@@ -44,7 +44,7 @@ const registerAdmin = asyncHandler(async(req,res) => {
 
     const existedUser = await Admin.findOne({ email });
     if(existedUser){
-        throw new ApiError(409,"user with email or username  or phone number already exist" );
+        throw new ApiError(409,"user with email" );
     }
     const user = await Admin.create({
         email
@@ -195,7 +195,7 @@ const updateAccountDetails = asyncHandler(async(req,res) => {
 })
 
 const dashboardDetails = asyncHandler(async (req,res)=>{
-  user = req.user;
+  const user = req.user;
   if(!user) throw new ApiError(500, "no user found");
   const [
     equipment,

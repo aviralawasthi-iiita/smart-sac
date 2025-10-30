@@ -13,7 +13,7 @@ router.route("/verify-reset-token").post(verifyResetToken);
 router.route("/current-user").get(verifyJWT,getCurrentUser);
 router.route("/forgot-password").post(forgotPassword);
 router.route("/reset-password").post(resetPassword)
-router.route("/dashboard").post(verifyJWT,dashboardDetails);
+router.route("/dashboard").get(verifyJWT,dashboardDetails);
 router.route("/update-account-details").post(verifyJWT,updateAccountDetails);
 
 export default router;

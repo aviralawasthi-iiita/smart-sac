@@ -60,7 +60,7 @@ const registerUser = asyncHandler(async(req,res) => {
         new ApiResponse(200,usercheck,"User created succesfully")
     )
 
-});
+}); 
 
 const loginUser = asyncHandler(async (req,res) => {
     const {email,username,password} = req.body;
@@ -228,7 +228,6 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   try {
     const transporter = createEmailTransporter();
-    S
     await transporter.sendMail({
       from: `"Smart-Sac" <${process.env.EMAIL_USER}>`,
       to: user.email,
@@ -252,7 +251,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Error sending email. Please try again later.");
   }
 });
-
+ 
 
 
 const verifyResetToken = asyncHandler(async (req, res,next) => {
@@ -322,38 +321,60 @@ const getCurrentUser = asyncHandler(async(req,res) => {
     .status(200)
     .json(new ApiResponse(200, req.user, "Current user fetched successfully"))
 })
- 
-const updateAccountDetails = asyncHandler(async(req,res) => {
-    const {fullname,email} = req.body;
-    if(!fullname || !email){
-        throw new ApiError(400,"all field are required");
-    }
-    const user = await User.findByIdAndUpdate(req.user?._id,
-        {
-            $set:{
-                fullname,
-                email
-            }
-        },
-        {
-            new:true
-        }
-    ).select("-password")
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const allowedFields = ["email", "phone_number", "fullname", "roll_no"];
+  const updates = {};
 
-    return res.status(200)
-    .json(new ApiResponse(200,user, "account details updated"))
-}) 
+  for (const field of allowedFields) {
+    if (req.body[field] && req.body[field].toString().trim() !== "") {
+      updates[field] = req.body[field].toString().trim();
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, "At least one non-empty field is required to update");
+  }
+
+  if (updates.email) {
+    const existingEmail = await User.findOne({
+      email: updates.email.toLowerCase(),
+      _id: { $ne: req.user._id },
+    });
+    if (existingEmail) throw new ApiError(409, "Email already in use");
+
+    updates.email = updates.email.toLowerCase().trim();
+  }
+
+  if (updates.phone_number) {
+    const existingPhone = await User.findOne({
+      phone_number: updates.phone_number,
+      _id: { $ne: req.user._id },
+    });
+    if (existingPhone) throw new ApiError(409, "Phone number already in use");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: updates },
+    { new: true }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Account details updated successfully"));
+});
 
 const dashboardDetails = asyncHandler(async (req,res)=>{
   const user = req.user;
   if(!user) throw new ApiError(500, "no user found");
+
   const [
     numberOfUnreadMessages,
     numberOfOpenTickets,
     equipment,
     announcements
   ] = await Promise.all([
-    Message.countDocuments({ receiver: user._id, status: { $ne: ["read","unsent"] }}),
+    Message.countDocuments({ receiver: user._id, status: { $nin: ["read","unsent"] }}),
     Ticket.countDocuments({ sender: user._id, status: "open" }),
     Equipment.find().lean(),
     Announcement.find().sort({ createdAt: -1 }).limit(2).lean()
@@ -372,6 +393,7 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
     )
   );
 });
+
 
 
 export {registerUser,

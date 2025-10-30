@@ -18,4 +18,4 @@ import adminRouter from "./routes/admin.routes.js"
 app.use("/api/v1/users",userRouter);
 app.use("/api/v1/admin",adminRouter);
 
-export {app};
+export {app}; 
