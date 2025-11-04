@@ -8,9 +8,28 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        lowercase: true,
+        lowercase: true, 
         trim: true,
         index: true,
+    },
+    games: [
+    {
+        game: {
+        type: Schema.Types.ObjectId,
+        ref: "Game",
+        required: true
+        },
+        rating: {
+        type: Number,
+        min: 0,
+        max: 5,
+        default: 0
+        }
+    }
+    ],
+    description: {
+        type: String,
+        trim: true,
     },
     email:{
         type: String,

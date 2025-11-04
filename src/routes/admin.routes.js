@@ -11,7 +11,10 @@ import {
   addEquipment,
   removeEquipment,
   addGame,
-  removeGame
+  removeGame,
+  makeAnnouncement,
+  getAnnouncements,
+  getNoOfAnnouncements
 } from "../controllers/admin.controller.js";
 import { verifyJWT } from "../middlewares/authadmin.middleware.js";
 const router = Router();
@@ -25,8 +28,11 @@ router.route("/dashboard").get(verifyJWT,dashboardDetails);
 router.route("/update-account-details").post(verifyJWT,updateAccountDetails);
 router.route("/update-equipment").post(verifyJWT,updateEquipment);
 router.route("/add-game").post(verifyJWT,addGame);
-router.route("/remove-game").post(verifyJWT,removeGame);
+router.route("/remove-game").delete(verifyJWT,removeGame);
 router.route("/add-equipment").post(verifyJWT,addEquipment);
-router.route("/remove-equipmet").post(verifyJWT,removeEquipment);
+router.route("/remove-equipment").delete(verifyJWT,removeEquipment);
+router.route("/make-announcement").post(verifyJWT,makeAnnouncement);
+router.route("/get-announcement").post(verifyJWT,getAnnouncements);
+router.route("/get-no-of-announcement").get(verifyJWT,getNoOfAnnouncements);
 
 export default router;

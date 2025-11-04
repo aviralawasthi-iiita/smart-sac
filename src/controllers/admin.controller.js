@@ -105,7 +105,6 @@ const loginAdmin = asyncHandler( async (req, res) => {
 });
 
 
-
 const logoutAdmin = asyncHandler(async(req,res)=> {
     await Admin.findByIdAndUpdate(req.user._id,
         {
@@ -117,7 +116,6 @@ const logoutAdmin = asyncHandler(async(req,res)=> {
             new:true
         }
     );
-
     const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -149,8 +147,8 @@ const refreshAccessToken = asyncHandler(async(req,res) =>{
         }
         const options = {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production", // ✅ only secure in prod
-            sameSite: "strict", // optional but recommended
+            secure: process.env.NODE_ENV === "production", 
+            sameSite: "strict", 
             };
         const {accessToken,refreshToken} =  await generateAccessTokenAndRefreshTokens(user._id);
         return res.status(200)
@@ -216,6 +214,7 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
     )
   );
 });
+
 const updateEquipment = asyncHandler(async (req, res) => {
   const { status, equipment, roll_no, duration } = req.body;
 
@@ -251,7 +250,7 @@ const updateEquipment = asyncHandler(async (req, res) => {
 const addGame = asyncHandler(async (req, res) => {
   const { name } = req.body;
 
-  if (!name || name.trim() === "") {
+  if (!name || name.trim() === "") {brokenEquipmentRequest
     throw new ApiError(400, "Game name is required");
   }
   const existingGame = await Game.findOne({ name: name.toLowerCase().trim() });
@@ -266,7 +265,7 @@ const addGame = asyncHandler(async (req, res) => {
 
 
 const removeGame = asyncHandler(async (req, res) => {
-  const { name } = req.body;
+  const { name } = req.query;
 
   if (!name || name.trim() === "") {
     throw new ApiError(400, "Game name is required");
@@ -305,11 +304,12 @@ const addEquipment = asyncHandler(async (req, res) => {
 });
 
 const removeEquipment = asyncHandler(async (req, res) => {
-  const { gameName, name } = req.body;
+  const { gameName, name } = req.query;
 
   if (!gameName || !name) {
     throw new ApiError(400, "Both gameName and equipment name are required");
   }
+
   const game = await Game.findOne({ name: gameName.toLowerCase().trim() });
   if (!game) {
     throw new ApiError(404, "Game not found");
@@ -318,24 +318,113 @@ const removeEquipment = asyncHandler(async (req, res) => {
   if (!equipment) {
     throw new ApiError(404, "Equipment not found");
   }
-  const index = game.equipment.indexOf(equipment._id);
+
+  const index = game.equipment.findIndex(
+    (id) => id.toString() === equipment._id.toString()
+  );
+
   if (index === -1) {
     throw new ApiError(400, "Equipment not associated with this game");
   }
   game.equipment.splice(index, 1);
   await game.save();
-  await Equipment.deleteOne({ _id: equipment._id });
+  await Equipment.findByIdAndDelete(equipment._id);
+  const updatedGame = await Game.findById(game._id).populate("equipment");
 
   return res.status(200).json(
     new ApiResponse(
       200,
-      { game, removedEquipment: equipment },
+      { game: updatedGame, removedEquipment: equipment },
       "Equipment removed successfully"
     )
   );
 });
 
 
+const makeAnnouncement = asyncHandler(async (req, res) => {
+  const { heading, content, footer, expiresIn } = req.body;
+
+  if (!heading || !content) {
+    throw new ApiError(400, "Heading and content are required");
+  }
+
+  const daysToExpire = expiresIn && !isNaN(expiresIn) ? Number(expiresIn) : 90;
+  if (daysToExpire <= 0) {
+    throw new ApiError(400, "expiresIn must be a positive number of days");
+  }
+  const expirationDate = new Date();
+  expirationDate.setDate(expirationDate.getDate() + daysToExpire);
+
+  const announcement = await Announcement.create({
+    heading: heading.trim(),
+    content: content.trim(),
+    footer: footer?.trim() || "",
+    expireAt: expirationDate,
+  });
+
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      announcement,
+      `Announcement created successfully (expires in ${daysToExpire} days)`
+    )
+  );
+});
+
+const getAnnouncements = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+  const announcements = await Announcement.find()
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        announcements,
+        currentPage: page,
+      },
+      "Announcements fetched successfully"
+    )
+  );
+});
+
+
+const getNoOfAnnouncements = asyncHandler(async (req, res) => {
+  const totalAnnouncements = await Announcement.countDocuments();
+  const limit = 10;
+  const totalPages = Math.ceil(totalAnnouncements / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        totalAnnouncements,
+        totalPages,
+      },
+      "Announcement count fetched successfully"
+    )
+  );
+}); 
+
+const deleteAnnouncement = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const announcement = await Announcement.findById(id);
+  if (!announcement) {
+    throw new ApiError(404, "Announcement not found");
+  }
+
+  await announcement.deleteOne();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Announcement deleted successfully"));
+});
 
 export {
     loginAdmin,
@@ -349,5 +438,9 @@ export {
     addGame,
     removeGame,
     addEquipment,
-    removeEquipment
+    removeEquipment,
+    makeAnnouncement,
+    getAnnouncements,
+    getNoOfAnnouncements,
+    deleteAnnouncement
 };

@@ -10,6 +10,7 @@ import { Ticket } from "../models/ticket.model.js";
 import { Equipment } from "../models/equipment.model.js";
 import { Game } from "../models/game.model.js";
 import { Announcement } from "../models/announcement.model.js";
+import { response } from "express"
 
 const generateAccessTokenAndRefreshTokens = async (userId) => {
   try {
@@ -150,8 +151,8 @@ const refreshAccessToken = asyncHandler(async(req,res) =>{
         }
         const options = {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production", // ✅ only secure in prod
-            sameSite: "strict", // optional but recommended
+            secure: process.env.NODE_ENV === "production", 
+            sameSite: "strict", 
             };
 
         const {accessToken, refreshToken} = await generateAccessTokenAndRefreshTokens(user._id);
@@ -330,6 +331,25 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
       updates[field] = req.body[field].toString().trim();
     }
   }
+    const games = req.body.games; // expecting [{ name: "football", rating: 4 }, { name: "cricket", rating: 5 }]
+  if (games) {
+    if (!Array.isArray(games)) {
+      throw new ApiError(400, "Games must be an array");
+    }
+
+    // Check that each object has both fields and rating is valid
+    for (const g of games) {
+      if (!g.name || g.rating === undefined) {
+        throw new ApiError(400, "Each game must include both name and rating");
+      }
+      if (typeof g.rating !== "number" || g.rating < 0 || g.rating > 5) {
+        throw new ApiError(400, "Game rating must be a number between 0 and 5");
+      }
+    }
+
+    // Add to updates
+    updates.games = games;
+  }
 
   if (Object.keys(updates).length === 0) {
     throw new ApiError(400, "At least one non-empty field is required to update");
@@ -355,10 +375,12 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
   const user = await User.findByIdAndUpdate(
     req.user._id,
-    { $set: updates },
+    { $set: updates,
+      $set: games,
+     },
     { new: true }
   ).select("-password");
-
+  
   return res
     .status(200)
     .json(new ApiResponse(200, user, "Account details updated successfully"));
@@ -395,6 +417,163 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
 });
 
 
+const searchUser = asyncHandler(async (req, res) => {
+  const { query, gamesFilter } = req.body;
+  if (!query) {
+    throw new ApiError(400, "Please provide a search query ");
+  }
+  const filter = {};
+  if (query) {
+    filter.$or = [
+      { name: { $regex: query, $options: "i" } },
+      { email: { $regex: query, $options: "i" } }
+    ];
+  }
+
+  if (gamesFilter) {
+    filter["games.game"] = gamesFilter;
+  }
+
+  const users = await User.find(filter)
+    .populate("games.game", "name genre")
+    .select("name email games");
+  return res
+    .status(200)
+    .json(new ApiResponse(200, users, "Users fetched successfully"));
+});
+
+const brokenEquipmentTicket = asyncHandler(async (req, res) => {
+  const { equipment, heading, details } = req.body;
+  const user = req.user;
+
+  if (!equipment || !heading || !details) {
+    throw new ApiError(400, "All fields (equipment, heading, details) are required");
+  }
+  if (!user) {
+    throw new ApiError(401, "Unauthorized user");
+  }
+
+  const equipmentData = await Equipment.findOne({ name: equipment });
+  if (!equipmentData) {
+    throw new ApiError(404, "Equipment not found");
+  }
+
+  const ticket = await Ticket.create({
+    heading,
+    content: details,
+    equipment: equipmentData._id,
+    sender: user._id,
+  });
+
+  const message = `
+    <h2>Broken Equipment Report</h2>
+    <p><strong>Equipment:</strong> ${equipment}</p>
+    <p><strong>Heading:</strong> ${heading}</p>
+    <p><strong>Details:</strong> ${details}</p>
+    <p><em>Reported by:</em> ${user.fullname || user.email}</p>
+  `;
+
+  try {
+    const transporter = createEmailTransporter();
+    await transporter.sendMail({
+      from: `"Smart-Sac" <${process.env.EMAIL_USER}>`,
+      to: process.env.SPORTS_HEAD_EMAIL,
+      subject: "Broken Equipment Report",
+      html: message,
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, { ticketId: ticket._id }, "Broken equipment report sent successfully")
+    );
+  } catch (error) {
+    throw new ApiError(500, "Failed to send email");
+  }
+});
+
+
+const newEquipmentTicket = asyncHandler(async (req, res) => {
+  const { equipment, game, heading, details } = req.body;
+  const user = req.user;
+
+  if (!equipment || !game || !heading || !details) {
+    throw new ApiError(400, "All fields (equipment, game, heading, details) are required");
+  }
+  if (!user) {
+    throw new ApiError(401, "Unauthorized user");
+  }
+
+  const ticket = await Ticket.create({
+    heading,
+    content: details,
+    sender: user._id,
+  });
+
+  const message = `
+    <h2>New Equipment Request</h2>
+    <p><strong>Game:</strong> ${game}</p>
+    <p><strong>Equipment:</strong> ${equipment}</p>
+    <p><strong>Heading:</strong> ${heading}</p>
+    <p><strong>Details:</strong> ${details}</p>
+    <p><em>Requested by:</em> ${user.fullname || user.email}</p>
+  `;
+
+  try {
+    const transporter = createEmailTransporter();
+    await transporter.sendMail({
+      from: `"Smart-Sac" <${process.env.EMAIL_USER}>`,
+      to: process.env.SPORTS_HEAD_EMAIL,
+      subject: "New Equipment Request",
+      html: message,
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, { ticketId: ticket._id }, "New equipment ticket sent successfully")
+    );
+  } catch (error) {
+    throw new ApiError(500, "Failed to send email");
+  }
+});
+
+
+export const getAnnouncements = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+  const announcements = await Announcement.find()
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        announcements,
+        currentPage: page,
+      },
+      "Announcements fetched successfully"
+    )
+  );
+});
+
+
+export const getNoOfAnnouncements = asyncHandler(async (req, res) => {
+  const totalAnnouncements = await Announcement.countDocuments();
+  const limit = 10;
+  const totalPages = Math.ceil(totalAnnouncements / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        totalAnnouncements,
+        totalPages,
+      },
+      "Announcement count fetched successfully"
+    )
+  );
+}); 
 
 export {registerUser,
     loginUser,
@@ -406,6 +585,10 @@ export {registerUser,
     verifyResetToken,
     refreshAccessToken,
     resetPassword,
-    dashboardDetails
-
+    dashboardDetails,
+    searchUser,
+    brokenEquipmentTicket,
+    newEquipmentTicket,
+    getNoOfAnnouncements,
+    getAnnouncements
 };

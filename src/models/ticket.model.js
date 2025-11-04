@@ -22,7 +22,6 @@ const ticketSchema = new mongoose.Schema({
     equipment:{
         type: Schema.Types.ObjectId,
         ref:"Equipment",
-        required:true,
     },
     sender:{
         type:Schema.Types.ObjectId,
