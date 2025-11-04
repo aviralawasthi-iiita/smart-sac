@@ -4,7 +4,7 @@ import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
 import { Admin } from "../models/admin.model.js";
 
-
+import { EquipmentHistory } from "../models/equipmentHistory.js";
 import { Message } from "../models/message.model.js";
 import { Ticket } from "../models/ticket.model.js";
 import { Equipment } from "../models/equipment.model.js";
@@ -197,10 +197,14 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
   if(!user) throw new ApiError(500, "no user found");
   const [
     equipment,
-    announcements
+    announcements,
+    ticket,
+    equipmentHistory
   ] = await Promise.all([
     Equipment.find().lean(),
-    Announcement.find().sort({ createdAt: -1 }).limit(2).lean()
+    Announcement.find().sort({ createdAt: -1 }).limit(2).lean(),
+    Ticket.find().lean().sort({ createdAt: -1 }).limit(5),
+    EquipmentHistory.find().sort({ changedAt: -1 }).limit(5).populate("equipment", "name status").populate("user", "name email roll_no").lean()
   ]);
 
   return res.status(200).json(
@@ -208,7 +212,9 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
       200,
       {      
         equipment,  
-        announcements  
+        announcements,
+        ticket,
+        equipmentHistory
       },
       "Dashboard details sent"
     )
@@ -218,22 +224,47 @@ const dashboardDetails = asyncHandler(async (req,res)=>{
 const updateEquipment = asyncHandler(async (req, res) => {
   const { status, equipment, roll_no, duration } = req.body;
 
-  if (!status) throw new ApiError(500, "Status is required");
+  if (!status) throw new ApiError(400, "Status is required");
   if (!equipment || !equipment._id) throw new ApiError(400, "Equipment ID is required");
 
   const equipmentDoc = await Equipment.findById(equipment._id);
   if (!equipmentDoc) throw new ApiError(404, "Equipment not found");
-  
+
+  let user = null;
+  let registered = false;
+
   if (status === "in-use") {
-    if (!roll_no || !duration) throw new ApiError(400, "roll_no and duration are required for in-use status");
+    if (!roll_no || !duration) {
+      throw new ApiError(400, "roll_no and duration are required for in-use status");
+    }
 
-    const user = await User.findOne({ roll_no });
-    if (!user) throw new ApiError(404, "No user found with that roll number");
-
-    equipmentDoc.user = user._id;
+    user = await User.findOne({ roll_no });
+    await EquipmentHistory.create({
+      equipment: equipmentDoc._id,
+      status: equipmentDoc.status,
+      user: equipmentDoc.user || null,
+      roll_no: roll_no || null,
+      duration: equipmentDoc.duration || null,
+      changedAt: new Date(),
+    });
+    if (user) {
+      registered = true;
+      equipmentDoc.user = user._id;
+    } else {
+      registered = true;
+      equipmentDoc.user = null;
+    }
     equipmentDoc.duration = duration;
     equipmentDoc.status = "in-use";
   } else {
+    await EquipmentHistory.create({
+      equipment: equipmentDoc._id,
+      status: equipmentDoc.status,
+      user: equipmentDoc.user || null,
+      duration: equipmentDoc.duration || null,
+      changedAt: new Date(),
+    });
+
     equipmentDoc.user = null;
     equipmentDoc.duration = null;
     equipmentDoc.status = status;
@@ -241,9 +272,15 @@ const updateEquipment = asyncHandler(async (req, res) => {
 
   await equipmentDoc.save();
 
+  const responseData = {
+    equipment: equipmentDoc,
+    registered,
+    user: user ? user : { roll_no },
+  };
+
   return res
     .status(200)
-    .json(new ApiResponse(200, { equipment: equipmentDoc }, "Equipment updated successfully"));
+    .json(new ApiResponse(200, responseData, "Equipment updated successfully"));
 });
 
 
@@ -428,34 +465,167 @@ const deleteAnnouncement = asyncHandler(async (req, res) => {
 
 const updateTicket = asyncHandler(async (req, res) => {
   const { id, newStatus } = req.body;
-
-  // ✅ Validation
   if (!id || !newStatus) {
     throw new ApiError(400, "Ticket ID and new status are required");
   }
 
-  // ✅ Find the ticket
   const ticket = await Ticket.findById(id);
   if (!ticket) {
     throw new ApiError(404, "Ticket not found");
   }
 
-  // ✅ Validate status value
   const allowedStatuses = ["in-process", "open", "closed"];
   if (!allowedStatuses.includes(newStatus)) {
     throw new ApiError(400, "Invalid status value");
   }
 
-  // ✅ Update and save
   ticket.status = newStatus;
   await ticket.save();
 
-  // ✅ Return response
   return res.status(200).json(
     new ApiResponse(
       200,
       ticket,
       `Ticket status updated to '${newStatus}' successfully`
+    )
+  );
+});
+
+const getNoOfActiveTickets = asyncHandler(async (req, res) => {
+  const totalTickets = await Ticket.countDocuments({
+    status: { $in: ["in-process", "open"] },
+  });
+
+  const limit = 10;
+  const totalPages = Math.ceil(totalTickets / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        totalTickets,
+        totalPages,
+      },
+      "Active ticket count fetched successfully"
+    )
+  );
+});
+
+const getActiveTickets = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+  const tickets = await Ticket.find({
+    status: { $in: ["in-process", "open"] },
+  })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate("sender", "name email")
+    .populate("equipment", "name");
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        tickets,
+        currentPage: page,
+      },
+      "Active tickets fetched successfully"
+    )
+  );
+});
+
+const getRecentEquipmentHistory = asyncHandler(async (req, res) => {
+  const limit = 10;
+  const history = await EquipmentHistory.find()
+    .sort({ changedAt: -1 })
+    .limit(limit)
+    .populate("equipment", "name status") 
+    .populate("user", "name email roll_no"); 
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        history,
+        count: history.length,
+      },
+      "Recent equipment history fetched successfully"
+    )
+  );
+});
+
+
+const getEquipmentRecentHistoryDict = asyncHandler(async (req, res) => {
+  const equipments = await Equipment.find({}, "_id name");
+
+  const equipmentHistoryDict = {};
+
+  for (const eq of equipments) {
+    const recentHistory = await EquipmentHistory.find({ equipment: eq._id })
+      .sort({ changedAt: -1 })
+      .limit(10)
+      .populate("user", "name email roll_no"); 
+
+    equipmentHistoryDict[eq.name] = recentHistory;
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      equipmentHistoryDict,
+      "Recent 10 history entries per equipment fetched successfully"
+    )
+  );
+});
+
+const getNoOfEquipmentHistory = asyncHandler(async (req, res) => {
+  const { equipmentId } = req.params;
+
+  const equipment = await Equipment.findById(equipmentId);
+  if (!equipment) throw new ApiError(404, "Equipment not found");
+
+  const totalHistory = await EquipmentHistory.countDocuments({ equipment: equipmentId });
+  const limit = 10;
+  const totalPages = Math.ceil(totalHistory / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        totalHistory,
+        totalPages,
+      },
+      "Equipment history count fetched successfully"
+    )
+  );
+});
+
+const getEquipmentHistory = asyncHandler(async (req, res) => {
+  const { equipmentId } = req.params;
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+  const equipment = await Equipment.findById(equipmentId);
+  if (!equipment) throw new ApiError(404, "Equipment not found");
+
+  const history = await EquipmentHistory.find({ equipment: equipmentId })
+    .sort({ changedAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate("user", "name email roll_no");
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        history,
+        currentPage: page,
+      },
+      "Equipment history fetched successfully"
     )
   );
 });
@@ -478,5 +648,11 @@ export {
     getAnnouncements,
     getNoOfAnnouncements,
     deleteAnnouncement,
-    updateTicket
+    updateTicket,
+    getNoOfActiveTickets,
+    getActiveTickets,
+    getRecentEquipmentHistory,
+    getEquipmentRecentHistoryDict,
+    getNoOfEquipmentHistory,
+    getEquipmentHistory
 };

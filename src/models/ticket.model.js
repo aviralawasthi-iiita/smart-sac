@@ -1,13 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 
 const ticketSchema = new mongoose.Schema({
-    id:{
-        type: String,
-        required: true,
-        unique: true,
-        lowercase: true,
-        trim: true,
-    },
     heading:{
         type: String,
         required: true,

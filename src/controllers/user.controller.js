@@ -331,13 +331,11 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
       updates[field] = req.body[field].toString().trim();
     }
   }
-    const games = req.body.games; // expecting [{ name: "football", rating: 4 }, { name: "cricket", rating: 5 }]
+    const games = req.body.games; 
   if (games) {
     if (!Array.isArray(games)) {
       throw new ApiError(400, "Games must be an array");
     }
-
-    // Check that each object has both fields and rating is valid
     for (const g of games) {
       if (!g.name || g.rating === undefined) {
         throw new ApiError(400, "Each game must include both name and rating");
@@ -347,7 +345,6 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
       }
     }
 
-    // Add to updates
     updates.games = games;
   }
 
@@ -434,7 +431,7 @@ const searchUser = asyncHandler(async (req, res) => {
   }
 
   const users = await User.find(filter).select("fullname username email games");
-    // .populate("games.game", "name genre")
+ 
     
   return res
     .status(200)

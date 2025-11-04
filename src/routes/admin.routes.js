@@ -15,7 +15,13 @@ import {
   makeAnnouncement,
   getAnnouncements,
   getNoOfAnnouncements,
-  updateTicket
+  updateTicket,
+  getNoOfActiveTickets,
+  getActiveTickets,
+  getEquipmentHistory,
+  getNoOfEquipmentHistory,
+  getRecentEquipmentHistory,
+  getEquipmentRecentHistoryDict
 } from "../controllers/admin.controller.js";
 import { verifyJWT } from "../middlewares/authadmin.middleware.js";
 const router = Router();
@@ -36,5 +42,11 @@ router.route("/make-announcement").post(verifyJWT,makeAnnouncement);
 router.route("/get-announcement").get(verifyJWT,getAnnouncements);
 router.route("/get-no-of-announcement").get(verifyJWT,getNoOfAnnouncements);
 router.route("/update-ticket").post(verifyJWT,updateTicket);
+router.route("/get-no-of-active-tickets").get(verifyJWT,getNoOfActiveTickets);
+router.route("/get-active-tickets").get(verifyJWT,getActiveTickets);
+router.route("/get-recent-equipment-history").get(verifyJWT,getRecentEquipmentHistory);
+router.route("/get-equipment-recent-history-dict").get(verifyJWT,getEquipmentRecentHistoryDict);
+router.route("/get-no-of-equipment-history").get(verifyJWT,getNoOfEquipmentHistory);
+router.route("/get-equipment-history").post(verifyJWT,getEquipmentHistory); 
 
 export default router;
