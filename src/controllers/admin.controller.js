@@ -250,7 +250,7 @@ const updateEquipment = asyncHandler(async (req, res) => {
 const addGame = asyncHandler(async (req, res) => {
   const { name } = req.body;
 
-  if (!name || name.trim() === "") {brokenEquipmentRequest
+  if (!name || name.trim() === "") {
     throw new ApiError(400, "Game name is required");
   }
   const existingGame = await Game.findOne({ name: name.toLowerCase().trim() });
@@ -426,6 +426,41 @@ const deleteAnnouncement = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "Announcement deleted successfully"));
 });
 
+const updateTicket = asyncHandler(async (req, res) => {
+  const { id, newStatus } = req.body;
+
+  // ✅ Validation
+  if (!id || !newStatus) {
+    throw new ApiError(400, "Ticket ID and new status are required");
+  }
+
+  // ✅ Find the ticket
+  const ticket = await Ticket.findById(id);
+  if (!ticket) {
+    throw new ApiError(404, "Ticket not found");
+  }
+
+  // ✅ Validate status value
+  const allowedStatuses = ["in-process", "open", "closed"];
+  if (!allowedStatuses.includes(newStatus)) {
+    throw new ApiError(400, "Invalid status value");
+  }
+
+  // ✅ Update and save
+  ticket.status = newStatus;
+  await ticket.save();
+
+  // ✅ Return response
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      ticket,
+      `Ticket status updated to '${newStatus}' successfully`
+    )
+  );
+});
+
+
 export {
     loginAdmin,
     logoutAdmin,
@@ -442,5 +477,6 @@ export {
     makeAnnouncement,
     getAnnouncements,
     getNoOfAnnouncements,
-    deleteAnnouncement
+    deleteAnnouncement,
+    updateTicket
 };

@@ -14,7 +14,8 @@ import {
   removeGame,
   makeAnnouncement,
   getAnnouncements,
-  getNoOfAnnouncements
+  getNoOfAnnouncements,
+  updateTicket
 } from "../controllers/admin.controller.js";
 import { verifyJWT } from "../middlewares/authadmin.middleware.js";
 const router = Router();
@@ -32,7 +33,8 @@ router.route("/remove-game").delete(verifyJWT,removeGame);
 router.route("/add-equipment").post(verifyJWT,addEquipment);
 router.route("/remove-equipment").delete(verifyJWT,removeEquipment);
 router.route("/make-announcement").post(verifyJWT,makeAnnouncement);
-router.route("/get-announcement").post(verifyJWT,getAnnouncements);
+router.route("/get-announcement").get(verifyJWT,getAnnouncements);
 router.route("/get-no-of-announcement").get(verifyJWT,getNoOfAnnouncements);
+router.route("/update-ticket").post(verifyJWT,updateTicket);
 
 export default router;

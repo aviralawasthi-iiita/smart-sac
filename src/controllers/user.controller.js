@@ -375,11 +375,10 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
   const user = await User.findByIdAndUpdate(
     req.user._id,
-    { $set: updates,
-      $set: games,
-     },
+    { $set: { ...updates, games } },
     { new: true }
-  ).select("-password");
+  );
+
   
   return res
     .status(200)
@@ -425,7 +424,7 @@ const searchUser = asyncHandler(async (req, res) => {
   const filter = {};
   if (query) {
     filter.$or = [
-      { name: { $regex: query, $options: "i" } },
+      { fullname: { $regex: query, $options: "i" } },
       { email: { $regex: query, $options: "i" } }
     ];
   }
@@ -434,9 +433,9 @@ const searchUser = asyncHandler(async (req, res) => {
     filter["games.game"] = gamesFilter;
   }
 
-  const users = await User.find(filter)
-    .populate("games.game", "name genre")
-    .select("name email games");
+  const users = await User.find(filter).select("fullname username email games");
+    // .populate("games.game", "name genre")
+    
   return res
     .status(200)
     .json(new ApiResponse(200, users, "Users fetched successfully"));
@@ -535,7 +534,7 @@ const newEquipmentTicket = asyncHandler(async (req, res) => {
 });
 
 
-export const getAnnouncements = asyncHandler(async (req, res) => {
+ const getAnnouncements = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limit = 10;
   const skip = (page - 1) * limit;
@@ -558,7 +557,7 @@ export const getAnnouncements = asyncHandler(async (req, res) => {
 });
 
 
-export const getNoOfAnnouncements = asyncHandler(async (req, res) => {
+ const getNoOfAnnouncements = asyncHandler(async (req, res) => {
   const totalAnnouncements = await Announcement.countDocuments();
   const limit = 10;
   const totalPages = Math.ceil(totalAnnouncements / limit);
